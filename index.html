@@ -10,9 +10,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Supabase SDK (must be before app.js) -->
+  <!-- 安定版CDNに固定（SDK not loaded回避） -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <link rel="stylesheet" href="./style.css?v=10000">
+  <!-- GitHub Pages サブパスでも確実に動くよう相対パス -->
+  <link rel="stylesheet" href="./style.css?v=2">
 
   <!-- Safety: background never steals taps -->
   <style>
@@ -200,6 +202,7 @@
     </div>
   </div>
 
-  <script src="./app.js?v=10000" defer></script>
+  <!-- app.js も相対パス + v=2（キャッシュ回避） -->
+  <script src="./app.js?v=2" defer></script>
 </body>
 </html>
