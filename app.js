@@ -12,8 +12,8 @@
  ************************************************************/
 
 // ========== 1) SET THESE ==========
-const SUPABASE_URL = "https://YOUR_PROJECT.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR_ANON_KEY";
+const SUPABASE_URL = "https://elsydeedgigdqjvpklqy.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_kGyupHgHgGCgOyF66C6-BA_VjBIK6an";
 
 // ========== 2) BOOT GUARDS ==========
 (function guardSupabaseSDK() {
@@ -917,3 +917,4 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
