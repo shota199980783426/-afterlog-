@@ -1,6 +1,6 @@
 // ===== Supabase =====
-const SUPABASE_URL = "https://YOUR_PROJECT_ID.supabase.co";
-const SUPABASE_KEY = "YOUR_ANON_KEY";
+const SUPABASE_URL = "https://elsydeedgigdqjvpklqy.supabase.co";
+const SUPABASE_KEY = "sb_publishable_kGyupHgHgGCgOyF66C6-BA_VjBIK6an";
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ===== DOM =====
@@ -162,3 +162,4 @@ addTodo.onclick = async () => {
   todoInput.value = "";
   loadTodos();
 };
+
