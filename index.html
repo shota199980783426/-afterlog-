@@ -3,223 +3,79 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Afterlog — FINAL</title>
+  <title>Afterlog</title>
 
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <!-- Supabase SDK (must be before app.js) -->
+  <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <link rel="stylesheet" href="./style.css?v=7">
-
-  <style>
-    #bgLayer { pointer-events:none !important; position:fixed; inset:0; z-index:-1; }
-    button,a,input,textarea,label { touch-action:manipulation; }
-  </style>
+  <link rel="stylesheet" href="./style.css?v=1">
 </head>
 
 <body>
-  <div id="bgLayer" aria-hidden="true"><div class="bg"></div></div>
-
   <header class="topbar">
-    <div class="brand">
-      <span class="dot"></span>
-      <span class="brandName">Afterlog</span>
-    </div>
-
-    <div class="topbarRight">
-      <button id="themeBtn" class="iconBtn" type="button" title="Theme">⬤</button>
+    <div class="brand">Afterlog</div>
+    <nav class="tabs">
+      <button id="tabJournal" class="tab active">Journal</button>
+      <button id="tabTodo" class="tab">Todo</button>
+    </nav>
+    <div class="right">
       <span id="syncStatus" class="sync">Synced</span>
-      <button id="quickBtn" class="fab" type="button" title="Quick capture">＋</button>
+      <button id="logoutBtn" class="logout">Log out</button>
     </div>
   </header>
 
   <!-- AUTH -->
-  <main id="authRoot" class="center">
-    <section class="card authCard">
-      <header class="authHeader">
-        <h1>Afterlog</h1>
-        <p class="tagline">One line a day, beautifully.</p>
-      </header>
-
-      <div class="tabs">
-        <button id="authTabLogin" class="chip active" type="button">Log in</button>
-        <button id="authTabSignup" class="chip" type="button">Sign up</button>
-      </div>
-
-      <form id="authForm" class="authForm" autocomplete="on">
-        <label class="field">
-          <span>Email</span>
-          <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
-        </label>
-        <label class="field">
-          <span>Password</span>
-          <input id="authPassword" type="password" autocomplete="current-password" placeholder="••••••••" required />
-        </label>
-
-        <button id="authAction" class="btn primary" type="submit">Log in</button>
-
-        <p id="authMsg" class="msg"></p>
-        <p id="authError" class="error"></p>
-
-        <p class="mutedSmall">Your session stays signed in.</p>
-      </form>
-    </section>
+  <main id="auth">
+    <div class="card">
+      <h1>Afterlog</h1>
+      <input id="email" placeholder="Email" />
+      <input id="password" type="password" placeholder="Password" />
+      <button id="loginBtn">Log in</button>
+      <button id="signupBtn" class="secondary">Sign up</button>
+      <p id="authMsg"></p>
+    </div>
   </main>
 
   <!-- APP -->
-  <main id="app" class="app hidden">
-    <nav class="mainTabs">
-      <button id="tabJournal" class="tab active" type="button">Journal</button>
-      <button id="tabTodo" class="tab" type="button">Todo</button>
-      <button id="logoutBtn" class="tab danger" type="button">Log out</button>
-    </nav>
-
+  <main id="app" class="hidden">
     <!-- Journal -->
-    <section id="journalView" class="view">
-      <div class="panel">
-        <div class="panelTop">
-          <div class="panelTitle">
-            <div class="h2">Journal</div>
-            <div class="sub" id="streakText">Streak: 0</div>
-          </div>
-
-          <div class="panelActions">
-            <label class="datePick">
-              <span>Date</span>
-              <input id="entryDate" type="date" />
-            </label>
-          </div>
-        </div>
-
-        <div class="composer">
-          <textarea id="journalInput" maxlength="160" placeholder="One line for today…"></textarea>
-
-          <div class="chipsRow">
-            <div class="chipGroup">
-              <button class="miniChip" data-mood="🙂" type="button">🙂</button>
-              <button class="miniChip" data-mood="😐" type="button">😐</button>
-              <button class="miniChip" data-mood="😞" type="button">😞</button>
-              <button class="miniChip" data-mood="😤" type="button">😤</button>
-              <button class="miniChip" data-mood="😌" type="button">😌</button>
-            </div>
-
-            <div class="count" id="journalCount">0 / 160</div>
-          </div>
-
-          <label class="field" style="margin-top:10px;">
-            <span>Tags (optional)</span>
-            <input id="tagInput" class="input" placeholder="e.g. work, study, health" />
-          </label>
-
-          <div class="row" style="margin-top:10px;">
-            <button id="saveJournal" class="btn primary" type="button">Save</button>
-          </div>
-
-          <div class="hint" id="journalHint"></div>
-        </div>
+    <section id="journalView">
+      <div class="card">
+        <textarea id="journalInput" maxlength="160" placeholder="One line…"></textarea>
+        <button id="saveJournal">Save</button>
       </div>
 
-      <!-- Recent -->
-      <div class="panel">
-        <div class="panelTop">
-          <div class="panelTitle">
-            <div class="h2">Recent</div>
-            <div class="sub">Last 3 days • All entries</div>
-          </div>
-          <div class="panelActions pager">
-            <button id="recentPrev" class="miniBtn" type="button">Prev</button>
-            <span id="recentPage" class="pageText">1</span>
-            <button id="recentNext" class="miniBtn" type="button">Next</button>
-          </div>
-        </div>
-        <ul id="recentList" class="list"></ul>
-      </div>
-
-      <!-- History -->
-      <div class="panel">
-        <div class="panelTop">
-          <div class="panelTitle">
-            <div class="h2">History</div>
-            <div class="sub">All time</div>
-          </div>
-          <div class="panelActions pager">
-            <button id="histPrev" class="miniBtn" type="button">Prev</button>
-            <span id="histPage" class="pageText">1</span>
-            <button id="histNext" class="miniBtn" type="button">Next</button>
-          </div>
-        </div>
-        <ul id="historyList" class="list"></ul>
+      <div class="card">
+        <ul id="journalList"></ul>
       </div>
     </section>
 
     <!-- Todo -->
-    <section id="todoView" class="view hidden">
-      <div class="panel">
-        <div class="panelTop">
-          <div class="panelTitle">
-            <div class="h2">Todo</div>
-            <div class="sub">Quietly get it done.</div>
-          </div>
-        </div>
+    <section id="todoView" class="hidden">
+      <div class="card">
+        <input id="todoInput" placeholder="Add a task…" />
+        <button id="addTodo">Add</button>
+      </div>
 
-        <div class="row">
-          <input id="todoInput" class="input" placeholder="Add a task…" />
-          <input id="todoDue" class="input small" type="date" />
-          <button id="addTodo" class="btn" type="button">Add</button>
-        </div>
+      <div class="card">
+        <h3>Active</h3>
+        <ul id="todoActive"></ul>
 
-        <div class="split">
-          <div>
-            <div class="subLabel">Active</div>
-            <ul id="todoList" class="list"></ul>
-          </div>
-
-          <div>
-            <details id="doneWrap" class="done" open>
-              <summary>Completed</summary>
-              <ul id="doneList" class="list"></ul>
-            </details>
-          </div>
-        </div>
+        <details open>
+          <summary>Completed</summary>
+          <ul id="todoCompleted"></ul>
+        </details>
       </div>
     </section>
   </main>
 
   <div id="toast" class="toast hidden"></div>
 
-  <!-- Quick Capture Modal -->
-  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
-    <div class="modalCard">
-      <div class="modalTop">
-        <div class="modalTitle" id="modalTitle">Quick capture</div>
-        <button id="modalClose" class="iconBtn" type="button">✕</button>
-      </div>
-
-      <div class="tabs">
-        <button id="qcJournalTab" class="chip active" type="button">Journal</button>
-        <button id="qcTodoTab" class="chip" type="button">Todo</button>
-      </div>
-
-      <div id="qcJournal" class="qc">
-        <textarea id="qcJournalText" maxlength="160" placeholder="One line…"></textarea>
-        <button id="qcSaveJournal" class="btn primary" type="button">Save</button>
-      </div>
-
-      <div id="qcTodo" class="qc hidden">
-        <input id="qcTodoText" class="input" placeholder="One task…" />
-        <div class="row">
-          <input id="qcTodoDue" class="input" type="date" />
-          <button id="qcAddTodo" class="btn primary" type="button">Add</button>
-        </div>
-      </div>
-
-      <div class="hint" id="qcHint"></div>
-    </div>
-  </div>
-
-  <script src="./app.js?v=7" defer></script>
+  <script src="./app.js?v=1"></script>
 </body>
 </html>
