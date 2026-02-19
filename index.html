@@ -3,20 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Afterlog — BUILD 1.0</title>
+  <title>Afterlog — FINAL</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Supabase SDK (must be before app.js) -->
-  <!-- 安定版CDNに固定（SDK not loaded回避） -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- GitHub Pages サブパスでも確実に動くよう相対パス -->
-  <link rel="stylesheet" href="./style.css?v=2">
+  <link rel="stylesheet" href="./style.css?v=7">
 
-  <!-- Safety: background never steals taps -->
   <style>
     #bgLayer { pointer-events:none !important; position:fixed; inset:0; z-index:-1; }
     button,a,input,textarea,label { touch-action:manipulation; }
@@ -26,7 +23,6 @@
 <body>
   <div id="bgLayer" aria-hidden="true"><div class="bg"></div></div>
 
-  <!-- Top bar -->
   <header class="topbar">
     <div class="brand">
       <span class="dot"></span>
@@ -34,9 +30,7 @@
     </div>
 
     <div class="topbarRight">
-      <button id="themeBtn" class="iconBtn" type="button" title="Theme">
-        ⬤
-      </button>
+      <button id="themeBtn" class="iconBtn" type="button" title="Theme">⬤</button>
       <span id="syncStatus" class="sync">Synced</span>
       <button id="quickBtn" class="fab" type="button" title="Quick capture">＋</button>
     </div>
@@ -65,9 +59,7 @@
           <input id="authPassword" type="password" autocomplete="current-password" placeholder="••••••••" required />
         </label>
 
-        <button id="authAction" class="btn primary" type="submit">
-          Log in
-        </button>
+        <button id="authAction" class="btn primary" type="submit">Log in</button>
 
         <p id="authMsg" class="msg"></p>
         <p id="authError" class="error"></p>
@@ -96,8 +88,8 @@
 
           <div class="panelActions">
             <label class="datePick">
-              <span>Jump</span>
-              <input id="jumpDate" type="date" />
+              <span>Date</span>
+              <input id="entryDate" type="date" />
             </label>
           </div>
         </div>
@@ -117,7 +109,12 @@
             <div class="count" id="journalCount">0 / 160</div>
           </div>
 
-          <div class="row">
+          <label class="field" style="margin-top:10px;">
+            <span>Tags (optional)</span>
+            <input id="tagInput" class="input" placeholder="e.g. work, study, health" />
+          </label>
+
+          <div class="row" style="margin-top:10px;">
             <button id="saveJournal" class="btn primary" type="button">Save</button>
           </div>
 
@@ -125,14 +122,36 @@
         </div>
       </div>
 
+      <!-- Recent -->
       <div class="panel">
         <div class="panelTop">
           <div class="panelTitle">
             <div class="h2">Recent</div>
-            <div class="sub">Last 3 days</div>
+            <div class="sub">Last 3 days • All entries</div>
+          </div>
+          <div class="panelActions pager">
+            <button id="recentPrev" class="miniBtn" type="button">Prev</button>
+            <span id="recentPage" class="pageText">1</span>
+            <button id="recentNext" class="miniBtn" type="button">Next</button>
           </div>
         </div>
-        <ul id="journalList" class="list"></ul>
+        <ul id="recentList" class="list"></ul>
+      </div>
+
+      <!-- History -->
+      <div class="panel">
+        <div class="panelTop">
+          <div class="panelTitle">
+            <div class="h2">History</div>
+            <div class="sub">All time</div>
+          </div>
+          <div class="panelActions pager">
+            <button id="histPrev" class="miniBtn" type="button">Prev</button>
+            <span id="histPage" class="pageText">1</span>
+            <button id="histNext" class="miniBtn" type="button">Next</button>
+          </div>
+        </div>
+        <ul id="historyList" class="list"></ul>
       </div>
     </section>
 
@@ -169,7 +188,6 @@
     </section>
   </main>
 
-  <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
   <!-- Quick Capture Modal -->
@@ -186,7 +204,7 @@
       </div>
 
       <div id="qcJournal" class="qc">
-        <textarea id="qcJournalText" maxlength="160" placeholder="One line…" ></textarea>
+        <textarea id="qcJournalText" maxlength="160" placeholder="One line…"></textarea>
         <button id="qcSaveJournal" class="btn primary" type="button">Save</button>
       </div>
 
@@ -202,7 +220,6 @@
     </div>
   </div>
 
-  <!-- app.js も相対パス + v=2（キャッシュ回避） -->
-  <script src="./app.js?v=2" defer></script>
+  <script src="./app.js?v=7" defer></script>
 </body>
 </html>
