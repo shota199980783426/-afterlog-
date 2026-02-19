@@ -4,8 +4,8 @@
   window.__AFTERLOG_BOOTED__ = true;
 
   // ===== CONFIG =====
-  const SUPABASE_URL = "PUT_YOUR_SUPABASE_URL_HERE";
-  const SUPABASE_ANON_KEY = "PUT_YOUR_SB_PUBLISHABLE_KEY_HERE";
+  const SUPABASE_URL = "https://elsydeedgigdqjvpklqy.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_kGyupHgHgGCgOyF66C6-BA_VjBIK6an";
   const PAGE_SIZE = 10; // recent/history 共通
 
   // ===== Helpers =====
@@ -614,3 +614,4 @@
     toast("Loaded.");
   }
 })();
+
