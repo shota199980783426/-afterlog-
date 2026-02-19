@@ -1,39 +1,40 @@
-/*************************************************
- * Afterlog v1.0 — FINAL
- * - Boot guard + Supabase singleton (prevents "already declared")
- * - Auth feedback (A: Logging in… / Signing up…)
- * - Journal (1/day), recent 3, streak, jump date
- * - Todo (add/toggle/delete/undo/sort/due/collapse)
- * - Themes (no layout change), toast, quick capture, sync status
- *************************************************/
-
 (() => {
+  // Boot guard (prevents double-init)
   if (window.__AFTERLOG_BOOTED__) return;
   window.__AFTERLOG_BOOTED__ = true;
 
   // ===== CONFIG =====
-  const SUPABASE_URL = "https://elsydeedgigdqjvpklqy.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_kGyupHgHgGCgOyF66C6-BA_VjBIK6an";
-  const BUILD = "1.0";
+  const SUPABASE_URL = "PUT_YOUR_SUPABASE_URL_HERE";
+  const SUPABASE_ANON_KEY = "PUT_YOUR_SB_PUBLISHABLE_KEY_HERE";
+  const PAGE_SIZE = 10; // recent/history 共通
 
   // ===== Helpers =====
   const $ = (id) => document.getElementById(id);
-  const show = (el) => el?.classList.remove("hidden");
-  const hide = (el) => el?.classList.add("hidden");
-  const setText = (el, t) => { if (el) el.textContent = t; };
+  const show = (el) => el.classList.remove("hidden");
+  const hide = (el) => el.classList.add("hidden");
+  const setText = (el, t) => { el.textContent = t; };
+
   const todayISO = () => new Date().toISOString().slice(0, 10);
   const toDate = (iso) => new Date(iso + "T00:00:00");
-  const addDays = (iso, d) => {
+  const addDaysISO = (iso, d) => {
     const dt = toDate(iso);
     dt.setDate(dt.getDate() + d);
-    return dt.toISOString().slice(0,10);
+    return dt.toISOString().slice(0, 10);
   };
+
+  function escapeHtml(str) {
+    return (str || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
 
   // Toast
   let toastTimer = null;
   function toast(msg) {
     const el = $("toast");
-    if (!el) return;
     setText(el, msg);
     show(el);
     clearTimeout(toastTimer);
@@ -47,35 +48,33 @@
   window.addEventListener("offline", syncByNet);
   syncByNet();
 
-  // ===== Supabase SDK guard =====
+  // Supabase SDK guard
   const sb = window.supabase || window.supabaseJs;
   if (!sb?.createClient) {
-    alert("Supabase SDK not loaded. (Check index.html head script)");
+    alert("Supabase SDK not loaded. Check index.html head script.");
     throw new Error("Supabase SDK not loaded");
   }
 
+  // Singleton client (prevents "already declared")
   window.__AFTERLOG_SUPABASE__ =
     window.__AFTERLOG_SUPABASE__ ||
     sb.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
   const supabase = window.__AFTERLOG_SUPABASE__;
 
   // ===== Theme =====
   const THEMES = ["gold", "emerald", "mono"];
   function applyTheme(theme) {
     const root = document.documentElement;
-    root.dataset.theme = theme === "gold" ? "" : theme;
-    // if dataset empty, remove attribute for gold
     if (theme === "gold") root.removeAttribute("data-theme");
+    else root.dataset.theme = theme;
   }
   function getTheme() { return localStorage.getItem("afterlog_theme") || "gold"; }
   function setTheme(t) { localStorage.setItem("afterlog_theme", t); applyTheme(t); toast("Theme."); }
   applyTheme(getTheme());
-  $("themeBtn")?.addEventListener("click", () => {
+  $("themeBtn").addEventListener("click", () => {
     const cur = getTheme();
     const idx = THEMES.indexOf(cur);
-    const next = THEMES[(idx + 1) % THEMES.length];
-    setTheme(next);
+    setTheme(THEMES[(idx + 1) % THEMES.length]);
   });
 
   // ===== DOM =====
@@ -97,13 +96,23 @@
   const journalView = $("journalView");
   const todoView = $("todoView");
 
+  const entryDate = $("entryDate");
   const journalInput = $("journalInput");
   const journalCount = $("journalCount");
+  const tagInput = $("tagInput");
   const saveJournalBtn = $("saveJournal");
-  const journalList = $("journalList");
-  const streakText = $("streakText");
-  const jumpDate = $("jumpDate");
   const journalHint = $("journalHint");
+  const streakText = $("streakText");
+
+  const recentList = $("recentList");
+  const recentPrev = $("recentPrev");
+  const recentNext = $("recentNext");
+  const recentPageText = $("recentPage");
+
+  const historyList = $("historyList");
+  const histPrev = $("histPrev");
+  const histNext = $("histNext");
+  const histPageText = $("histPage");
 
   const todoInput = $("todoInput");
   const todoDue = $("todoDue");
@@ -111,7 +120,7 @@
   const todoList = $("todoList");
   const doneList = $("doneList");
 
-  // Quick Capture
+  // Quick capture
   const modal = $("modal");
   const modalClose = $("modalClose");
   const quickBtn = $("quickBtn");
@@ -126,21 +135,20 @@
   const qcAddTodo = $("qcAddTodo");
   const qcHint = $("qcHint");
 
-  // ===== Guards (整合性チェック) =====
-  const requiredIds = [
-    authRoot, appRoot,
-    authTabLogin, authTabSignup, authForm, authEmail, authPassword, authAction, authMsg, authError,
-    tabJournal, tabTodo, logoutBtn, journalView, todoView,
-    journalInput, journalCount, saveJournalBtn, journalList, streakText, jumpDate,
-    todoInput, todoDue, addTodoBtn, todoList, doneList,
-    modal, modalClose, quickBtn, qcJournalTab, qcTodoTab, qcJournal, qcTodo, qcJournalText, qcSaveJournal, qcTodoText, qcTodoDue, qcAddTodo, qcHint
-  ];
-  if (requiredIds.some(x => !x)) {
-    alert("HTML/JS mismatch: missing element(s). Please use the provided index.html.");
-    throw new Error("HTML/JS mismatch");
-  }
+  // ===== State =====
+  let authMode = "login";
+  let currentUser = null;
+  let selectedMood = null;
 
-  // ===== App tab switching =====
+  let recentPage = 1;
+  let recentHasNext = false;
+
+  let histPage = 1;
+  let histHasNext = false;
+
+  let todos = [];
+
+  // ===== Tabs =====
   function setMainTab(name) {
     tabJournal.classList.toggle("active", name === "journal");
     tabTodo.classList.toggle("active", name === "todo");
@@ -151,8 +159,7 @@
   tabTodo.addEventListener("click", () => setMainTab("todo"));
   setMainTab("journal");
 
-  // ===== Auth mode =====
-  let authMode = "login";
+  // ===== Auth =====
   function setAuthMode(m) {
     authMode = m;
     authTabLogin.classList.toggle("active", m === "login");
@@ -165,19 +172,18 @@
   authTabSignup.addEventListener("click", () => setAuthMode("signup"));
   setAuthMode("login");
 
-  function setAuthLoading(on, label) {
+  function setAuthLoading(on) {
     authAction.disabled = on;
     authEmail.disabled = on;
     authPassword.disabled = on;
-    setText(authAction, on ? label : (authMode === "login" ? "Log in" : "Sign up"));
+    setText(authAction, on ? (authMode === "login" ? "Logging in…" : "Signing up…") : (authMode === "login" ? "Log in" : "Sign up"));
   }
 
   function humanizeAuthError(msg) {
     const m = (msg || "").toLowerCase();
     if (m.includes("invalid login credentials")) return "Couldn’t verify. Check email/password.";
-    if (m.includes("password") && m.includes("length")) return "Password is too short.";
     if (m.includes("rate limit")) return "Too many attempts. Please wait a bit.";
-    if (m.includes("email") && m.includes("already")) return "This email is already registered.";
+    if (m.includes("already")) return "This email is already registered.";
     return msg || "Auth error";
   }
 
@@ -188,17 +194,10 @@
 
     const email = (authEmail.value || "").trim();
     const password = authPassword.value || "";
+    if (!email || !password) { setText(authError, "Please enter email and password."); return; }
+    if (password.length < 6) { setText(authError, "Password must be at least 6 characters."); return; }
 
-    if (!email || !password) {
-      setText(authError, "Please enter email and password.");
-      return;
-    }
-    if (password.length < 6) {
-      setText(authError, "Password must be at least 6 characters.");
-      return;
-    }
-
-    setAuthLoading(true, authMode === "login" ? "Logging in…" : "Signing up…");
+    setAuthLoading(true);
     try {
       if (authMode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -213,7 +212,7 @@
     } catch (err) {
       setText(authError, humanizeAuthError(err?.message));
     } finally {
-      setAuthLoading(false, "");
+      setAuthLoading(false);
     }
   });
 
@@ -224,57 +223,93 @@
     toast("Signed out.");
   });
 
-  // ===== Routing by session =====
-  let currentUserId = null;
   function route(session) {
     if (session?.user) {
-      currentUserId = session.user.id;
+      currentUser = session.user;
       hide(authRoot);
       show(appRoot);
-      bootData(); // load data when logged in
+      boot();
     } else {
-      currentUserId = null;
+      currentUser = null;
       show(authRoot);
       hide(appRoot);
     }
   }
+
   supabase.auth.getSession().then(({ data }) => route(data?.session));
   supabase.auth.onAuthStateChange((_e, session) => route(session));
 
-  // ===== Journal state =====
-  let selectedMood = null;
-  let autoSaveTimer = null;
-  let lastSavedText = "";
+  // ===== Journal UI =====
+  entryDate.value = todayISO();
 
-  // Mood selection
+  function updateCount() {
+    const len = (journalInput.value || "").length;
+    setText(journalCount, `${len} / 160`);
+  }
+  journalInput.addEventListener("input", updateCount);
+  updateCount();
+
+  // mood chips
   document.querySelectorAll(".miniChip[data-mood]").forEach(btn => {
     btn.addEventListener("click", () => {
       const mood = btn.dataset.mood;
       selectedMood = (selectedMood === mood) ? null : mood;
-      // visual select
       document.querySelectorAll(".miniChip[data-mood]").forEach(b => b.style.outline = "");
       if (selectedMood) btn.style.outline = "2px solid rgba(255,255,255,.22)";
       toast(selectedMood ? `Mood ${selectedMood}` : "Mood cleared.");
     });
   });
 
-  function updateCount() {
-    const len = (journalInput.value || "").length;
-    setText(journalCount, `${len} / 160`);
-  }
-  journalInput.addEventListener("input", () => {
-    updateCount();
-    setText(journalHint, "");
-    // autosave after 3s idle
-    clearTimeout(autoSaveTimer);
-    autoSaveTimer = setTimeout(() => {
-      // silent autosave only if changed + non-empty
-      const text = (journalInput.value || "").trim();
-      if (text && text !== lastSavedText) saveJournal({ silent: true });
-    }, 3000);
-  });
-  updateCount();
+  // save (INSERT = unlimited)
+  async function saveJournal({ silent=false } = {}) {
+    const text = (journalInput.value || "").trim();
+    if (!text) {
+      setText(journalHint, "Nothing written today. That’s okay.");
+      if (!silent) toast("Nothing to save.");
+      return;
+    }
+    if (!currentUser) return;
 
+    const dateIso = entryDate.value || todayISO();
+    const tags = (tagInput.value || "")
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean)
+      .slice(0, 12);
+
+    saveJournalBtn.disabled = true;
+    setText(saveJournalBtn, "Saving…");
+    setSync("Syncing…");
+
+    try {
+      const { error } = await supabase.from("journal_entries").insert([{
+        user_id: currentUser.id,
+        entry_date: dateIso,
+        content: text,
+        mood: selectedMood,
+        tags
+      }]);
+      if (error) throw error;
+
+      setSync("Synced");
+      if (!silent) toast("Saved.");
+      setText(journalHint, dateIso === todayISO() ? "Today." : "Saved.");
+
+      // refresh lists
+      await loadRecent(1);
+      await loadHistory(1);
+      await computeStreak();
+    } catch (err) {
+      setSync(navigator.onLine ? "Synced" : "Offline");
+      setText(journalHint, err?.message || "Save failed.");
+      toast("Couldn’t save.");
+    } finally {
+      saveJournalBtn.disabled = false;
+      setText(saveJournalBtn, "Save");
+    }
+  }
+
+  saveJournalBtn.addEventListener("click", () => saveJournal());
   journalInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -282,268 +317,226 @@
     }
   });
 
-  saveJournalBtn.addEventListener("click", () => saveJournal());
+  // ===== Recent (last 3 days only) =====
+  async function loadRecent(page=1) {
+    if (!currentUser) return;
+    recentPage = page;
+    setText(recentPageText, String(recentPage));
 
-  jumpDate.value = todayISO();
-  jumpDate.addEventListener("change", async () => {
-    const iso = jumpDate.value || todayISO();
-    await loadJournalForDate(iso);
-    toast("Loaded.");
-  });
-
-  async function saveJournal({ silent = false } = {}) {
-    const text = (journalInput.value || "").trim();
-    if (!text) {
-      setText(journalHint, "Nothing written today. That’s okay.");
-      if (!silent) toast("Nothing to save.");
-      return;
-    }
-    if (!currentUserId) return;
-
-    const dateIso = jumpDate.value || todayISO();
-    setSync("Syncing…");
-    try {
-      // upsert by unique (user_id, entry_date)
-      const { error } = await supabase
-        .from("journal_entries")
-        .upsert({
-          user_id: currentUserId,
-          entry_date: dateIso,
-          content: text,
-          mood: selectedMood,
-          tags: []
-        }, { onConflict: "user_id,entry_date" });
-
-      if (error) throw error;
-
-      lastSavedText = text;
-      setSync("Synced");
-      if (!silent) toast("Saved.");
-      await loadRecent();
-      await computeStreak();
-    } catch (err) {
-      setSync(navigator.onLine ? "Synced" : "Offline");
-      if (!silent) toast("Couldn’t save.");
-      setText(journalHint, err?.message || "Save failed.");
-    }
-  }
-
-  async function loadJournalForDate(iso) {
-    if (!currentUserId) return;
-    setSync("Syncing…");
-    const { data, error } = await supabase
-      .from("journal_entries")
-      .select("entry_date, content, mood")
-      .eq("user_id", currentUserId)
-      .eq("entry_date", iso)
-      .maybeSingle();
-
-    setSync("Synced");
-
-    if (error) {
-      setText(journalHint, error.message);
-      return;
-    }
-
-    if (!data) {
-      journalInput.value = "";
-      lastSavedText = "";
-      selectedMood = null;
-      document.querySelectorAll(".miniChip[data-mood]").forEach(b => b.style.outline = "");
-      updateCount();
-      setText(journalHint, "Nothing written today. That’s okay.");
-      return;
-    }
-
-    journalInput.value = data.content || "";
-    lastSavedText = data.content || "";
-    selectedMood = data.mood || null;
-    document.querySelectorAll(".miniChip[data-mood]").forEach(b => {
-      b.style.outline = (selectedMood && b.dataset.mood === selectedMood) ? "2px solid rgba(255,255,255,.22)" : "";
-    });
-    updateCount();
-    setText(journalHint, iso === todayISO() ? "Today." : "Loaded.");
-  }
-
-  async function loadRecent() {
-    if (!currentUserId) return;
     const today = todayISO();
-    const from = addDays(today, -2); // last 3 days (today-2..today)
+    const from = addDaysISO(today, -2);
+
+    const fromIdx = (recentPage - 1) * PAGE_SIZE;
+    const toIdx = fromIdx + PAGE_SIZE; // we'll fetch +1 to know next
+    setSync("Syncing…");
+
+    // Fetch PAGE_SIZE + 1 to determine hasNext
     const { data, error } = await supabase
       .from("journal_entries")
-      .select("entry_date, content, mood")
-      .eq("user_id", currentUserId)
+      .select("id, entry_date, content, mood, tags, created_at")
+      .eq("user_id", currentUser.id)
       .gte("entry_date", from)
       .lte("entry_date", today)
-      .order("entry_date", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(fromIdx, toIdx); // inclusive, so this is PAGE_SIZE+1 rows
 
-    if (error) return;
-
-    journalList.innerHTML = "";
-    if (!data || data.length === 0) {
-      journalList.innerHTML = `<li class="item"><div class="itemTitle">No entries yet.</div><div class="itemMeta">Start with one line.</div></li>`;
+    setSync("Synced");
+    if (error) {
+      recentList.innerHTML = `<li class="item"><div class="itemTitle">Error</div><div class="itemMeta">${escapeHtml(error.message)}</div></li>`;
       return;
     }
 
-    for (const row of data) {
-      const isToday = row.entry_date === todayISO();
-      const li = document.createElement("li");
-      li.className = "item";
-      li.innerHTML = `
-        <div class="itemTop">
-          <div class="itemTitle">${isToday ? "Today" : row.entry_date}</div>
-          <div class="badge ${isToday ? "today" : ""}">${row.mood ? row.mood : ""}</div>
-        </div>
-        <div class="itemMeta">${escapeHtml(row.content)}</div>
-      `;
-      li.addEventListener("click", async () => {
-        jumpDate.value = row.entry_date;
-        await loadJournalForDate(row.entry_date);
-        toast("Loaded.");
-      });
-      journalList.appendChild(li);
+    const rows = data || [];
+    recentHasNext = rows.length > PAGE_SIZE;
+    const slice = rows.slice(0, PAGE_SIZE);
+
+    recentPrev.disabled = recentPage <= 1;
+    recentNext.disabled = !recentHasNext;
+
+    if (slice.length === 0) {
+      recentList.innerHTML = `<li class="item"><div class="itemTitle">No entries.</div><div class="itemMeta">Last 3 days only.</div></li>`;
+      return;
     }
+
+    recentList.innerHTML = slice.map(r => renderJournalRow(r)).join("");
   }
 
+  recentPrev.addEventListener("click", () => loadRecent(Math.max(1, recentPage - 1)));
+  recentNext.addEventListener("click", () => { if (recentHasNext) loadRecent(recentPage + 1); });
+
+  // ===== History (all time) =====
+  async function loadHistory(page=1) {
+    if (!currentUser) return;
+    histPage = page;
+    setText(histPageText, String(histPage));
+
+    const fromIdx = (histPage - 1) * PAGE_SIZE;
+    const toIdx = fromIdx + PAGE_SIZE; // fetch +1
+    setSync("Syncing…");
+
+    const { data, error } = await supabase
+      .from("journal_entries")
+      .select("id, entry_date, content, mood, tags, created_at")
+      .eq("user_id", currentUser.id)
+      .order("entry_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(fromIdx, toIdx);
+
+    setSync("Synced");
+    if (error) {
+      historyList.innerHTML = `<li class="item"><div class="itemTitle">Error</div><div class="itemMeta">${escapeHtml(error.message)}</div></li>`;
+      return;
+    }
+
+    const rows = data || [];
+    histHasNext = rows.length > PAGE_SIZE;
+    const slice = rows.slice(0, PAGE_SIZE);
+
+    histPrev.disabled = histPage <= 1;
+    histNext.disabled = !histHasNext;
+
+    if (slice.length === 0) {
+      historyList.innerHTML = `<li class="item"><div class="itemTitle">No history yet.</div><div class="itemMeta">Start with one line.</div></li>`;
+      return;
+    }
+
+    historyList.innerHTML = slice.map(r => renderJournalRow(r, true)).join("");
+  }
+
+  histPrev.addEventListener("click", () => loadHistory(Math.max(1, histPage - 1)));
+  histNext.addEventListener("click", () => { if (histHasNext) loadHistory(histPage + 1); });
+
+  function renderJournalRow(r, showDate=true) {
+    const dt = showDate ? (r.entry_date || "") : "";
+    const mood = r.mood || "";
+    const tags = (r.tags || []).length ? `#${(r.tags || []).join(" #")}` : "";
+    const time = (r.created_at || "").replace("T", " ").slice(0, 16);
+    return `
+      <li class="item">
+        <div class="itemTop">
+          <div class="itemTitle">${showDate ? escapeHtml(dt) : "Entry"}</div>
+          <div class="badge">${escapeHtml(mood)}</div>
+        </div>
+        <div class="itemMeta">${escapeHtml(r.content || "")}</div>
+        <div class="itemMeta">${escapeHtml(tags)} ${tags ? "•" : ""} ${escapeHtml(time)}</div>
+      </li>
+    `;
+  }
+
+  // ===== Streak (day-based) =====
   async function computeStreak() {
-    if (!currentUserId) return;
-    // fetch last 60 days entries dates
+    if (!currentUser) return;
     const today = todayISO();
-    const from = addDays(today, -60);
+    const from = addDaysISO(today, -60);
+
     const { data, error } = await supabase
       .from("journal_entries")
       .select("entry_date")
-      .eq("user_id", currentUserId)
+      .eq("user_id", currentUser.id)
       .gte("entry_date", from)
       .lte("entry_date", today);
 
     if (error || !data) return;
 
-    const set = new Set(data.map(r => r.entry_date));
+    const days = new Set(data.map(x => x.entry_date));
     let streak = 0;
-    let cursor = today;
-    while (set.has(cursor)) {
-      streak += 1;
-      cursor = addDays(cursor, -1);
+    let cur = today;
+    while (days.has(cur)) {
+      streak++;
+      cur = addDaysISO(cur, -1);
     }
     setText(streakText, `Streak: ${streak}`);
   }
 
-  // ===== Todo state =====
-  let todos = [];
-  let undo = null; // { row, timer }
-
-  function renderTodos() {
-    const today = todayISO();
-    const active = todos.filter(t => !t.completed).sort((a,b) => (a.due_date||"9999") > (b.due_date||"9999") ? 1 : -1);
-    const done = todos.filter(t => t.completed).sort((a,b) => (a.updated_at||"") < (b.updated_at||"") ? 1 : -1);
-
-    todoList.innerHTML = "";
-    doneList.innerHTML = "";
-
-    const mk = (t) => {
-      const li = document.createElement("li");
-      li.className = "item";
-      const due = t.due_date ? t.due_date : "";
-      const isToday = due && due === today;
-      li.innerHTML = `
-        <div class="todoLine">
-          <button class="check" type="button" aria-label="toggle"></button>
-          <div class="todoText">${escapeHtml(t.content)}</div>
-          ${due ? `<span class="badge ${isToday ? "today" : ""}">${isToday ? "Today" : due}</span>` : ""}
-          <button class="miniBtn" type="button">Delete</button>
-        </div>
-      `;
-      const checkBtn = li.querySelector(".check");
-      const delBtn = li.querySelector(".miniBtn");
-      checkBtn.addEventListener("click", () => toggleTodo(t));
-      delBtn.addEventListener("click", () => deleteTodo(t));
-      return li;
-    };
-
-    if (active.length === 0) {
-      todoList.innerHTML = `<li class="item"><div class="itemTitle">No active tasks.</div><div class="itemMeta">Keep it light.</div></li>`;
-    } else {
-      active.forEach(t => todoList.appendChild(mk(t)));
-    }
-
-    if (done.length === 0) {
-      doneList.innerHTML = `<li class="item"><div class="itemTitle">No completed tasks.</div><div class="itemMeta">Small wins count.</div></li>`;
-    } else {
-      done.forEach(t => doneList.appendChild(mk(t)));
-    }
-  }
-
+  // ===== Todo =====
   async function loadTodos() {
-    if (!currentUserId) return;
+    if (!currentUser) return;
     const { data, error } = await supabase
       .from("todos")
       .select("*")
-      .eq("user_id", currentUserId)
+      .eq("user_id", currentUser.id)
       .order("created_at", { ascending: false });
     if (error) return;
     todos = data || [];
     renderTodos();
   }
 
+  function renderTodos() {
+    const today = todayISO();
+    const active = todos.filter(t => !t.completed);
+    const done = todos.filter(t => t.completed);
+
+    todoList.innerHTML = "";
+    doneList.innerHTML = "";
+
+    const mk = (t) => {
+      const due = t.due_date ? t.due_date : "";
+      const isToday = due && due === today;
+      return `
+        <li class="item">
+          <div class="todoLine">
+            <button class="check" data-id="${t.id}" type="button" aria-label="toggle"></button>
+            <div class="todoText">${escapeHtml(t.content)}</div>
+            ${due ? `<span class="badge ${isToday ? "today" : ""}">${escapeHtml(isToday ? "Today" : due)}</span>` : ""}
+            <button class="miniBtn" data-del="${t.id}" type="button">Delete</button>
+          </div>
+        </li>
+      `;
+    };
+
+    todoList.innerHTML = active.length
+      ? active.map(mk).join("")
+      : `<li class="item"><div class="itemTitle">No active tasks.</div><div class="itemMeta">Keep it light.</div></li>`;
+
+    doneList.innerHTML = done.length
+      ? done.map(mk).join("")
+      : `<li class="item"><div class="itemTitle">No completed tasks.</div><div class="itemMeta">Small wins count.</div></li>`;
+
+    document.querySelectorAll(".check[data-id]").forEach(btn => {
+      btn.addEventListener("click", () => toggleTodo(btn.dataset.id));
+    });
+    document.querySelectorAll(".miniBtn[data-del]").forEach(btn => {
+      btn.addEventListener("click", () => deleteTodo(btn.dataset.del));
+    });
+  }
+
   async function addTodo(content, due) {
     const text = (content || "").trim();
     if (!text) { toast("Nothing to add."); return; }
     setSync("Syncing…");
-    const payload = { user_id: currentUserId, content: text, due_date: due || null, completed:false };
-    const { data, error } = await supabase.from("todos").insert(payload).select("*").single();
+    const { error } = await supabase.from("todos").insert([{
+      user_id: currentUser.id,
+      content: text,
+      due_date: due || null,
+      completed: false
+    }]);
     setSync("Synced");
     if (error) { toast("Couldn’t add."); return; }
-    todos.unshift(data);
-    renderTodos();
     toast("Saved.");
+    await loadTodos();
   }
 
-  async function toggleTodo(t) {
+  async function toggleTodo(id) {
+    const t = todos.find(x => x.id === id);
+    if (!t) return;
     setSync("Syncing…");
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("todos")
       .update({ completed: !t.completed })
-      .eq("id", t.id)
-      .select("*")
-      .single();
+      .eq("id", id);
     setSync("Synced");
     if (error) { toast("Couldn’t update."); return; }
-    todos = todos.map(x => x.id === t.id ? data : x);
-    renderTodos();
     toast("Saved.");
+    await loadTodos();
   }
 
-  async function deleteTodo(t) {
-    // optimistic remove + undo window
-    const removed = t;
-    todos = todos.filter(x => x.id !== t.id);
-    renderTodos();
-    toast("Deleted. Undo?");
-
-    if (undo?.timer) clearTimeout(undo.timer);
-    undo = {
-      row: removed,
-      timer: setTimeout(async () => {
-        // commit delete after 5s
-        setSync("Syncing…");
-        await supabase.from("todos").delete().eq("id", removed.id);
-        setSync("Synced");
-        undo = null;
-      }, 5000)
-    };
-
-    // click toast to undo (simple)
-    $("toast").onclick = async () => {
-      if (!undo) return;
-      clearTimeout(undo.timer);
-      // restore row in DB if already deleted? in our flow not yet deleted
-      todos.unshift(undo.row);
-      undo = null;
-      renderTodos();
-      toast("Restored.");
-      $("toast").onclick = null;
-    };
+  async function deleteTodo(id) {
+    setSync("Syncing…");
+    const { error } = await supabase.from("todos").delete().eq("id", id);
+    setSync("Synced");
+    if (error) { toast("Couldn’t delete."); return; }
+    toast("Deleted.");
+    await loadTodos();
   }
 
   addTodoBtn.addEventListener("click", async () => {
@@ -567,23 +560,20 @@
   });
 
   // ===== Quick Capture =====
-  function openModal(defaultTab) {
-    show(modal);
-    if (defaultTab === "todo") setQcTab("todo");
-    else setQcTab("journal");
-    qcHint.textContent = "";
-    setTimeout(() => {
-      (defaultTab === "todo" ? qcTodoText : qcJournalText).focus();
-    }, 0);
-  }
-  function closeModal() { hide(modal); }
-
   function setQcTab(name) {
     qcJournalTab.classList.toggle("active", name === "journal");
     qcTodoTab.classList.toggle("active", name === "todo");
     if (name === "journal") { show(qcJournal); hide(qcTodo); }
     else { show(qcTodo); hide(qcJournal); }
   }
+
+  function openModal(defaultTab) {
+    show(modal);
+    qcHint.textContent = "";
+    setQcTab(defaultTab);
+    setTimeout(() => (defaultTab === "todo" ? qcTodoText : qcJournalText).focus(), 0);
+  }
+  function closeModal() { hide(modal); }
 
   quickBtn.addEventListener("click", () => {
     const onJournal = !journalView.classList.contains("hidden");
@@ -598,7 +588,6 @@
   qcSaveJournal.addEventListener("click", async () => {
     const text = (qcJournalText.value || "").trim();
     if (!text) { qcHint.textContent = "Nothing to save."; return; }
-    // save to selected jump date (today by default)
     journalInput.value = text;
     updateCount();
     await saveJournal();
@@ -613,35 +602,15 @@
     closeModal();
   });
 
-  qcTodoText.addEventListener("keydown", async (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      await addTodo(qcTodoText.value, qcTodoDue.value || null);
-      qcTodoText.value = "";
-      qcTodoDue.value = "";
-      closeModal();
-    }
-    if (e.key === "Escape") closeModal();
-  });
-
-  // ===== Boot data after login =====
-  async function bootData() {
-    // initialize journal for today
-    jumpDate.value = todayISO();
-    await loadJournalForDate(todayISO());
-    await loadRecent();
+  // ===== Boot =====
+  async function boot() {
+    entryDate.value = todayISO();
+    recentPage = 1;
+    histPage = 1;
+    await loadRecent(1);
+    await loadHistory(1);
     await computeStreak();
     await loadTodos();
-    toast(`Loaded. (v${BUILD})`);
-  }
-
-  // ===== HTML escape =====
-  function escapeHtml(str) {
-    return (str || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+    toast("Loaded.");
   }
 })();
